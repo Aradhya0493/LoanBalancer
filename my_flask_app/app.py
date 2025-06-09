@@ -1,81 +1,163 @@
-from flask import Flask, render_template, request, redirect, url_for
-import matplotlib.pyplot as plt
+from flask import Flask, render_template, request, jsonify
+import pandas as pd
 import os
+from utils import check_loan_eligibility, plot_metrics, load_uploaded_csv
+from scoring import calculate_eligibility_score
 
 app = Flask(__name__)
 
-# Make sure the charts folder exists
-os.makedirs('static/charts', exist_ok=True)
+# Load base data on startup
+BASE_DATA_PATH = "financial_sheets.csv"
+if not os.path.exists(BASE_DATA_PATH):
+    raise FileNotFoundError(f"Missing {BASE_DATA_PATH} file.")
 
-def check_loan_eligibility(current_ratio, debt_to_equity, net_profit_margin, interest_coverage, revenue):
-    thresholds = {
-        "current_ratio": 1.5,
-        "debt_to_equity": 1.0,
-        "net_profit_margin": 0.1,
-        "interest_coverage": 2.0,
-        "revenue": 100000
+base_data = pd.read_csv(BASE_DATA_PATH)
+base_data = base_data.rename(columns={"Debt to Equity": "Debt-to-Equity Ratio"})
+
+# Temp storage for uploaded CSVs
+UPLOADED_CSV_PATH = "data/uploaded_temp.csv"
+os.makedirs("data", exist_ok=True)
+
+REQUIRED_COLUMNS = [
+    "Current Ratio",
+    "Debt-to-Equity Ratio",
+    "Net Profit Margin",
+    "Interest Coverage",
+    "Revenue",
+    "Company"
+]
+
+def clean_uploaded_df(df):
+    # Map possible alternate column names to required ones
+    rename_map = {
+        "Debt to Equity": "Debt-to-Equity Ratio",
+        "Net_Profit_Margin": "Net Profit Margin",
+        "Debt_to_Equity": "Debt-to-Equity Ratio",
+        "Interest_Coverage": "Interest Coverage",
+        "Current_Ratio": "Current Ratio",
+        "Revenue": "Revenue",
+        "Company": "Company"
     }
-    reasons = []
-    if current_ratio < thresholds["current_ratio"]:
-        reasons.append("Current ratio is below the threshold.")
-    if debt_to_equity > thresholds["debt_to_equity"]:
-        reasons.append("Debt-to-equity ratio is above the threshold.")
-    if net_profit_margin < thresholds["net_profit_margin"]:
-        reasons.append("Net profit margin is below the threshold.")
-    if interest_coverage < thresholds["interest_coverage"]:
-        reasons.append("Interest coverage is below the threshold.")
-    if revenue < thresholds["revenue"]:
-        reasons.append("Revenue is below the threshold.")
-    
-    if reasons:
-        return "Loan Denied", ", ".join(reasons)
+    df = df.rename(columns=rename_map)
+    # Only keep required columns
+    return df[[col for col in REQUIRED_COLUMNS if col in df.columns]]
+
+
+@app.route("/")
+def home():
+    # Send base company list for dropdown on page load
+    companies = base_data["Company"].dropna().tolist()
+    return render_template("index.html", companies=companies)
+
+
+@app.route("/api/upload_csv", methods=["POST"])
+def upload_csv():
+    try:
+        file = request.files.get("file")
+        if not file:
+            return jsonify({"error": "No file uploaded."}), 400
+
+        df_uploaded = pd.read_csv(file)
+        df_uploaded = clean_uploaded_df(df_uploaded)
+
+        if "Company" not in df_uploaded.columns:
+            return jsonify({"error": "CSV must contain 'Company' column."}), 400
+
+        # Save to temp file for session (simple approach)
+        df_uploaded.to_csv(UPLOADED_CSV_PATH, index=False)
+
+        companies = df_uploaded["Company"].dropna().tolist()
+        return jsonify({"companies": companies})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/get_company_data", methods=["POST"])
+def get_company_data():
+    try:
+        data = request.json
+        company_name = data.get("company")
+        if not company_name:
+            return jsonify({"error": "Company name not provided."}), 400
+
+        # Try uploaded data first, fallback to base data
+        if os.path.exists(UPLOADED_CSV_PATH):
+            df = pd.read_csv(UPLOADED_CSV_PATH)
+        else:
+            df = base_data
+
+        df = clean_uploaded_df(df)
+
+        row = df[df["Company"] == company_name]
+        if row.empty:
+            return jsonify({"error": "Company not found."}), 404
+
+        row = row.iloc[0]
+        return jsonify({
+            "Current Ratio": float(row.get("Current Ratio", 0)),
+            "Debt-to-Equity Ratio": float(row.get("Debt-to-Equity Ratio", 0)),
+            "Net Profit Margin": float(row.get("Net Profit Margin", 0)),
+            "Interest Coverage": float(row.get("Interest Coverage", 0)),
+            "Revenue": float(row.get("Revenue", 0))
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/predict_loan_approval", methods=["POST"])
+def predict_loan_approval():
+    try:
+        data = request.json
+        cr = float(data.get("Current Ratio", 0))
+        de = float(data.get("Debt-to-Equity Ratio", 0))
+        npm = float(data.get("Net Profit Margin", 0))
+        ic = float(data.get("Interest Coverage", 0))
+        rev = float(data.get("Revenue", 0))
+
+        status_val, reason_val, metrics = check_loan_eligibility(cr, de, npm, ic, rev)
+        figs = plot_metrics(metrics)
+        score = calculate_eligibility_score(metrics)
+
+        return jsonify({
+            "status": status_val,
+            "reason": reason_val,
+            "score": score,
+            "metrics": metrics
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/dashboard_metrics")
+def dashboard_metrics():
+    # Use uploaded CSV if available, else base data
+    if os.path.exists(UPLOADED_CSV_PATH):
+        df = pd.read_csv(UPLOADED_CSV_PATH)
     else:
-        return "Loan Approved", "All criteria met."
+        df = base_data
 
-def generate_dashboard_chart():
-    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
-    approved = [12, 15, 18, 14, 20, 16]
-    rejected = [6, 5, 5, 4, 3, 7]
+    # Ensure columns are named correctly
+    df = df.rename(columns={"Debt to Equity": "Debt-to-Equity Ratio"})
 
-    plt.figure(figsize=(8, 4))
-    plt.bar(months, approved, color='green', label='Approved')
-    plt.bar(months, rejected, bottom=approved, color='red', label='Rejected')
-    plt.title("Monthly Approval Trends")
-    plt.legend()
-    plt.tight_layout()
+    # Compute averages, handling missing columns gracefully
+    avg_current_ratio = df["Current Ratio"].mean() if "Current Ratio" in df else 0
+    avg_debt_to_equity = df["Debt-to-Equity Ratio"].mean() if "Debt-to-Equity Ratio" in df else 0
+    avg_net_profit_margin = df["Net Profit Margin"].mean() if "Net Profit Margin" in df else 0
 
-    chart_path = 'static/charts/loan_approval_trends.png'
-    plt.savefig(chart_path)
-    plt.close()
-    return chart_path
+    return jsonify({
+        "avgCurrentRatio": round(avg_current_ratio, 2),
+        "avgDebtToEquity": round(avg_debt_to_equity, 2),
+        "avgNetProfitMargin": round(avg_net_profit_margin, 2)
+    })
 
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    result = None
-    reasons = None
-    if request.method == 'POST':
-        # Get form data and convert to floats
-        try:
-            current_ratio = float(request.form['current_ratio'])
-            debt_to_equity = float(request.form['debt_to_equity'])
-            net_profit_margin = float(request.form['net_profit_margin'])
-            interest_coverage = float(request.form['interest_coverage'])
-            revenue = float(request.form['revenue'])
-            
-            result, reasons = check_loan_eligibility(current_ratio, debt_to_equity, net_profit_margin, interest_coverage, revenue)
-        except ValueError:
-            result = "Invalid input"
-            reasons = "Please enter valid numerical values."
+@app.route("/dashboard")
+def dashboard():
+    # Placeholder dashboard page
+    return render_template("dashboard.html")
 
-    chart_url = url_for('static', filename='charts/loan_approval_trends.png')
-
-    return render_template('index.html', 
-                           result=result, reasons=reasons, chart_url=chart_url)
-
-@app.route('/generate-chart')
-def generate_chart():
-    chart_path = generate_dashboard_chart()
-    return redirect(url_for('index'))
 
 if __name__ == "__main__":
     app.run(debug=True)

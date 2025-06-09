@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Dashboard - Financial Metrics</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: #f5f8fa;
+        margin: 20px;
+        color: #333;
+    }
+    h2 {
+        text-align: center;
+        color: #1a73e8;
+        margin-bottom: 30px;
+    }
+    .chart-container {
+        max-width: 900px;
+        margin: 0 auto 40px auto;
+        background: white;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    }
+    canvas {
+        width: 100% !important;
+        height: 300px !important;
+    }
+</style>
+</head>
+<body>
+<h2>📊 Financial Metrics Dashboard</h2>
+
+<div class="chart-container">
+    <canvas id="avgCurrentRatio"></canvas>
+</div>
+<div class="chart-container">
+    <canvas id="avgDebtToEquity"></canvas>
+</div>
+<div class="chart-container">
+    <canvas id="avgNetProfitMargin"></canvas>
+</div>
+
+<script>
+// Fetch aggregated data from backend API
+async function fetchMetrics() {
+    const res = await fetch("/api/dashboard_metrics");
+    if (!res.ok) {
+        alert("Failed to load dashboard data");
+        return null;
+    }
+    return await res.json();
+}
+
+function createBarChart(ctx, label, value) {
+    return new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: [label],
+            datasets: [{
+                label: label,
+                data: [value],
+                backgroundColor: '#1a73e8'
+            }]
+        },
+        options: {
+            scales: { y: { beginAtZero: true } },
+            plugins: { legend: { display: false } }
+        }
+    });
+}
+
+async function initDashboard() {
+    const metrics = await fetchMetrics();
+    if (!metrics) return;
+
+    createBarChart(document.getElementById('avgCurrentRatio').getContext('2d'), 'Average Current Ratio', metrics.avgCurrentRatio);
+    createBarChart(document.getElementById('avgDebtToEquity').getContext('2d'), 'Average Debt to Equity', metrics.avgDebtToEquity);
+    createBarChart(document.getElementById('avgNetProfitMargin').getContext('2d'), 'Average Net Profit Margin', metrics.avgNetProfitMargin);
+}
+
+initDashboard();
+</script>
+
+</body>
+</html>
