@@ -1,72 +1,46 @@
-# Loan Balancer App
+# Loan Balancer App - Frontend Documentation
 
-The Loan Balancer App is a financial application designed to assess loan eligibility based on various financial metrics. It utilizes a Flask backend to handle API requests and a Gradio frontend for user interaction.
-
-## Project Structure
-
-```
-loan-balancer-app
-├── backend
-│   ├── app.py               # Entry point for the Flask API
-│   ├── models.py            # Data models and calculations for loan eligibility
-│   ├── utils.py             # Utility functions for data processing
-│   ├── requirements.txt      # Python dependencies for the backend
-│   └── README.md            # Documentation for the backend
-├── frontend
-│   ├── gradio_app.py        # Gradio interface for user interaction
-│   └── README.md            # Documentation for the frontend
-├── data
-│   └── financial_sheets.csv  # Financial data for calculations
-├── .gitignore               # Files and directories to ignore in Git
-└── README.md                # Overview of the entire project
-```
-
-## Features
-
-- **Loan Eligibility Assessment**: The app evaluates loan eligibility based on:
-  - Current Ratio
-  - Debt-to-Equity Ratio
-  - Net Profit Margin
-  - Interest Coverage Ratio
-  - Revenue Score
-
-- **Decision Output**: The app provides a clear output indicating whether the loan is approved or denied, along with the reasons based on the financial metrics.
+## Overview
+The Loan Balancer app provides a user-friendly interface for assessing loan eligibility based on various financial metrics. This frontend is built using Gradio, allowing users to input their financial data and receive instant feedback on their loan approval status.
 
 ## Setup Instructions
 
-### Backend
+1. **Install Dependencies**:
+   Ensure you have Python installed. You can install the required libraries using pip. Run the following command in your terminal:
 
-1. Navigate to the `backend` directory.
-2. Install the required dependencies:
    ```
-   pip install -r requirements.txt
-   ```
-3. Run the Flask API:
-   ```
-   python app.py
+   pip install gradio pandas
    ```
 
-### Frontend
+2. **Run the Gradio App**:
+   To start the Gradio interface, execute the following command in your terminal:
 
-1. Navigate to the `frontend` directory.
-2. Run the Gradio app:
    ```
    python gradio_app.py
    ```
 
+3. **Access the App**:
+   Once the app is running, it will provide a local URL (usually `http://localhost:7860`) where you can access the Loan Balancer interface through your web browser.
+
 ## Usage
 
-- Access the Gradio interface in your web browser to input financial metrics and receive loan eligibility results.
-- The backend API can also be accessed directly for programmatic checks.
+1. **Input Financial Metrics**:
+   Enter the required financial metrics such as current ratio, debt-to-equity ratio, net profit margin, interest coverage, and company revenue in the provided fields.
 
-## Data Source
+2. **Submit for Evaluation**:
+   After entering the data, click the "Evaluate" button to check your loan eligibility.
 
-The financial data used for calculations is sourced from the Kaggle dataset available at [Kaggle Financial Sheets Dataset](https://www.kaggle.com/datasets/pacificrm/financial-sheets).
+3. **View Results**:
+   The app will display whether the loan is approved or denied, along with the reasons based on the financial metrics provided.
+
+## Features
+
+- User-friendly interface for inputting financial data.
+- Instant feedback on loan eligibility.
+- Detailed reasons for loan approval or denial based on financial metrics.
 
 ## Contributing
-
-Contributions are welcome! Please feel free to submit a pull request or open an issue for any enhancements or bug fixes.
+If you would like to contribute to the development of this app, please fork the repository and submit a pull request with your changes.
 
 ## License
-
-This project is licensed under the MIT License.
+This project is licensed under the MIT License. See the LICENSE file for more details.
